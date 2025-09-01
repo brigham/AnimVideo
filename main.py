@@ -5,10 +5,42 @@ import os
 import glob
 import itertools
 import abc
-from typing import Tuple
+from typing import Tuple, List
 import subprocess
+from dataclasses import dataclass, field
 
 # https://youtu.be/a4Yge_o7XLg?si=YYmPQBmLYXq4cSoY at 1:10:30
+
+@dataclass
+class Config:
+    FPS: int = 60
+    SCALE_DOWN: int = 1
+    OUTER_RADIUS_BASE: int = 40
+    INNER_RADIUS_BASE: int = 30
+    CANVAS_SIZE_BASE: Tuple[int, int] = (3840 * 2, 2160 * 2)
+    ADJUSTMENT: int = 25
+    SECONDS: int = 2
+    SKIP: int = 18
+    LEVELS: int = 53
+    COLORS0: List[str] = field(default_factory=lambda: ['blue', 'green', 'yellow', 'red'])
+    COLORS1: List[str] = field(default_factory=lambda: ['cyan', 'yellow', 'orange', 'magenta'])
+
+    @property
+    def OUTER_RADIUS(self) -> int:
+        return self.OUTER_RADIUS_BASE // self.SCALE_DOWN
+
+    @property
+    def INNER_RADIUS(self) -> int:
+        return self.INNER_RADIUS_BASE // self.SCALE_DOWN
+
+    @property
+    def CANVAS_SIZE(self) -> Tuple[int, int]:
+        return (self.CANVAS_SIZE_BASE[0] // self.SCALE_DOWN, self.CANVAS_SIZE_BASE[1] // self.SCALE_DOWN)
+
+    @property
+    def FRAMES(self) -> int:
+        return int(self.SECONDS * self.FPS * self.SKIP)
+
 
 class AbstractVideoProducer:
     def __init__(self, output_path: str, size: Tuple[int, int], fps: int):
@@ -154,30 +186,18 @@ def ncircles(disc_radius, radius):
 def minutes(m):
     return m * 60
 
-FPS = 60
-SCALE_DOWN = 1
-OUTER_RADIUS = 40 // SCALE_DOWN
-INNER_RADIUS = 30 // SCALE_DOWN
-CANVAS_SIZE = (3840 * 2 // SCALE_DOWN, 2160 * 2 // SCALE_DOWN)
-ADJUSTMENT = 25
-SECONDS = 2
-SKIP = 18
-FRAMES = int(SECONDS * FPS * SKIP)
-LEVELS = 53
-COLORS0 = ['blue', 'green', 'yellow', 'red']
-COLORS1 = ['cyan', 'yellow', 'orange', 'magenta']
-
 def main():
+    config = Config()
     # Delete old png files
     for f in itertools.chain(glob.glob('red_ring*.png'), glob.glob('red_ring*.bmp')):
         os.remove(f)
     try:
         # rpm = 100
-        thumb_producer = GlobVideoProducer("thumbnails.mp4", CANVAS_SIZE, FPS, "red_ring")
-        producer = FFmpegVideoProducer("output.mp4", CANVAS_SIZE, FPS)
-        for add_rot in range(0, FRAMES, SKIP):
+        thumb_producer = GlobVideoProducer("thumbnails.mp4", config.CANVAS_SIZE, config.FPS, "red_ring")
+        producer = FFmpegVideoProducer("output.mp4", config.CANVAS_SIZE, config.FPS)
+        for add_rot in range(0, config.FRAMES, config.SKIP):
             add_rot_f = add_rot / 2
-            image = Image.new("RGB", CANVAS_SIZE, (0, 0, 0))
+            image = Image.new("RGB", config.CANVAS_SIZE, (0, 0, 0))
             draw = ImageDraw.Draw(image)
             def red_ring(level, rotation, adj):
                 rotprime = rotation * 3 % (2 * math.pi)
@@ -188,22 +208,22 @@ def main():
                     return
                 # quadrant = 'red' if rotprime < math.pi / 2 else 'blue' if rotprime < math.pi else 'green' if rotprime < 3 * math.pi / 2 else 'yellow'
                 if quadnum % 3 == 0:
-                    quadrant = COLORS0[level % len(COLORS0)]
+                    quadrant = config.COLORS0[level % len(config.COLORS0)]
                 else:
-                    quadrant = COLORS1[level % len(COLORS1)]
+                    quadrant = config.COLORS1[level % len(config.COLORS1)]
                 draw_ring(
                     draw, color=quadrant,
-                    inner_radius=INNER_RADIUS, outer_radius=OUTER_RADIUS,
-                    center_x=CANVAS_SIZE[0] // 2 - level * OUTER_RADIUS * 2 - ADJUSTMENT, center_y=CANVAS_SIZE[1] // 2,
+                    inner_radius=config.INNER_RADIUS, outer_radius=config.OUTER_RADIUS,
+                    center_x=config.CANVAS_SIZE[0] // 2 - level * config.OUTER_RADIUS * 2 - config.ADJUSTMENT, center_y=config.CANVAS_SIZE[1] // 2,
                     rotation=rotation + adj
                 )
-            for level in range(1, LEVELS):
-                n = ncircles(level * OUTER_RADIUS * 2 + ADJUSTMENT, OUTER_RADIUS)
+            for level in range(1, config.LEVELS):
+                n = ncircles(level * config.OUTER_RADIUS * 2 + config.ADJUSTMENT, config.OUTER_RADIUS)
                 #print(f"Level {level}: {n} circles would fit.")
                 cnt = 0
                 rotation = 0.0
                 while rotation < 360.0:
-                    red_ring(level=level, rotation=radians(rotation), adj=radians(add_rot_f * (1.0 - level / LEVELS)))
+                    red_ring(level=level, rotation=radians(rotation), adj=radians(add_rot_f * (1.0 - level / config.LEVELS)))
                     rotation += 360.0 / n
                     cnt += 1
                 #print(f"Created {cnt} circles.")
