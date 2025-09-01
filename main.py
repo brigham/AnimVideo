@@ -5,6 +5,8 @@ import os
 import glob
 import itertools
 
+# https://youtu.be/a4Yge_o7XLg?si=YYmPQBmLYXq4cSoY at 1:10:30
+
 def draw_ring(draw: ImageDraw.ImageDraw, color, inner_radius: int, outer_radius: int, center_x: int, center_y: int, rotation: float = 0.0):
     """
     Draws a ring with a transparent center using the Pillow library.
@@ -66,6 +68,15 @@ def radians(degrees):
 def ncircles(disc_radius, radius):
     return math.floor(math.pi / math.asin(radius / disc_radius))
 
+FPS = 120
+SCALE_DOWN = 10
+OUTER_RADIUS = 40 // SCALE_DOWN
+INNER_RADIUS = 30 // SCALE_DOWN
+CANVAS_SIZE = (3840 * 2 // SCALE_DOWN, 2160 * 2 // SCALE_DOWN)
+ADJUSTMENT = 25
+SECONDS = 60
+FRAMES = SECONDS * FPS
+
 def generate_video(fps, canvas_size):
     stream = ffmpeg.input('red_ring_*.png', pattern_type='glob', framerate=fps).filter('scale', canvas_size[0] // 2, -1)
     stream.output("output.mp4", pix_fmt='yuv420p', sws_flags='lanczos').overwrite_output().run()
@@ -78,27 +89,21 @@ def main():
     # --- Example Usage ---
     # Create and save a red ring with an inner radius of 50 and an outer radius of 100
     try:
-        fps = 120
         # rpm = 100
-        outer_radius = 40
-        inner_radius = 30
-        canvas_size = (3840 * 2, 2160 * 2)
-        adjustment = 25
-        frames = []
-        for add_rot in range(0, 7200 * 10, 3):
+        for add_rot in range(0, FRAMES, 3):
             add_rot_f = add_rot / 2
-            image = Image.new("RGBA", canvas_size, (0, 0, 0, 0))
+            image = Image.new("RGBA", CANVAS_SIZE, (0, 0, 0, 0))
             draw = ImageDraw.Draw(image)
             def red_ring(level, rotation, adj):
                 quadrant = 'red' if rotation < math.pi / 2 else 'blue' if rotation < math.pi else 'green' if rotation < 3 * math.pi / 2 else 'yellow'
                 draw_ring(
                     draw, color=quadrant,
-                    inner_radius=inner_radius, outer_radius=outer_radius,
-                    center_x=canvas_size[0] // 2 - level * outer_radius * 2 - adjustment, center_y=canvas_size[1] // 2,
+                    inner_radius=INNER_RADIUS, outer_radius=OUTER_RADIUS,
+                    center_x=CANVAS_SIZE[0] // 2 - level * OUTER_RADIUS * 2 - ADJUSTMENT, center_y=CANVAS_SIZE[1] // 2,
                     rotation=rotation + adj
                 )
             for level in range(1, 11):
-                n = ncircles(level * outer_radius * 2 + adjustment, outer_radius)
+                n = ncircles(level * OUTER_RADIUS * 2 + ADJUSTMENT, OUTER_RADIUS)
                 print(f"Level {level}: {n} circles would fit.")
                 cnt = 0
                 rotation = 0.0
@@ -111,8 +116,7 @@ def main():
             filename = f"red_ring_{add_rot:06d}.png"
             image.save(filename, compress_level=1)
             print(f"Ring image '{filename}' created successfully!")
-            frames.append(filename)
-        generate_video(fps, canvas_size)
+        generate_video(FPS, CANVAS_SIZE)
     except Exception as e:
         print(f"An error occurred: {e}")
 
