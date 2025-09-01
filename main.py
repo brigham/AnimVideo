@@ -68,16 +68,21 @@ def radians(degrees):
 def ncircles(disc_radius, radius):
     return math.floor(math.pi / math.asin(radius / disc_radius))
 
-FPS = 120
-SCALE_DOWN = 5
+def minutes(m):
+    return m * 60
+
+FPS = 60
+SCALE_DOWN = 2
 OUTER_RADIUS = 40 // SCALE_DOWN
 INNER_RADIUS = 30 // SCALE_DOWN
 CANVAS_SIZE = (3840 * 2 // SCALE_DOWN, 2160 * 2 // SCALE_DOWN)
 ADJUSTMENT = 25
 SECONDS = 20
-SKIP = 9
-FRAMES = SECONDS * FPS * SKIP
+SKIP = 18
+FRAMES = int(SECONDS * FPS * SKIP)
 LEVELS = 53
+COLORS0 = ['blue', 'green', 'yellow', 'red']
+COLORS1 = ['cyan', 'yellow', 'orange', 'magenta']
 
 def generate_video(fps, canvas_size):
     stream = ffmpeg.input('red_ring_*.png', pattern_type='glob', framerate=fps).filter('scale', canvas_size[0] // 2, -1)
@@ -95,11 +100,17 @@ def main():
             image = Image.new("RGBA", CANVAS_SIZE, (0, 0, 0, 0))
             draw = ImageDraw.Draw(image)
             def red_ring(level, rotation, adj):
-                sine = abs(math.sin(rotation))
-                cosine = abs(math.cos(rotation))
+                rotprime = rotation * 3 % (2 * math.pi)
+                quadnum = int(rotation * 3 / (math.pi / 2))
+                sine = abs(math.sin(rotprime))
+                cosine = abs(math.cos(rotprime))
                 if sine > 0.98 or cosine > 0.98:
                     return
-                quadrant = 'red' if rotation < math.pi / 2 else 'blue' if rotation < math.pi else 'green' if rotation < 3 * math.pi / 2 else 'yellow'
+                # quadrant = 'red' if rotprime < math.pi / 2 else 'blue' if rotprime < math.pi else 'green' if rotprime < 3 * math.pi / 2 else 'yellow'
+                if quadnum % 3 == 0:
+                    quadrant = COLORS0[level % len(COLORS0)]
+                else:
+                    quadrant = COLORS1[level % len(COLORS1)]
                 draw_ring(
                     draw, color=quadrant,
                     inner_radius=INNER_RADIUS, outer_radius=OUTER_RADIUS,
