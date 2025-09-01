@@ -69,13 +69,14 @@ def ncircles(disc_radius, radius):
     return math.floor(math.pi / math.asin(radius / disc_radius))
 
 FPS = 120
-SCALE_DOWN = 10
+SCALE_DOWN = 5
 OUTER_RADIUS = 40 // SCALE_DOWN
 INNER_RADIUS = 30 // SCALE_DOWN
 CANVAS_SIZE = (3840 * 2 // SCALE_DOWN, 2160 * 2 // SCALE_DOWN)
 ADJUSTMENT = 25
-SECONDS = 60
-FRAMES = SECONDS * FPS
+SECONDS = 20
+SKIP = 33
+FRAMES = SECONDS * FPS * SKIP
 
 def generate_video(fps, canvas_size):
     stream = ffmpeg.input('red_ring_*.png', pattern_type='glob', framerate=fps).filter('scale', canvas_size[0] // 2, -1)
@@ -86,11 +87,9 @@ def main():
     # Delete old png files
     for f in itertools.chain(glob.glob('red_ring*.png'), glob.glob('red_ring*.bmp')):
         os.remove(f)
-    # --- Example Usage ---
-    # Create and save a red ring with an inner radius of 50 and an outer radius of 100
     try:
         # rpm = 100
-        for add_rot in range(0, FRAMES, 3):
+        for add_rot in range(0, FRAMES, SKIP):
             add_rot_f = add_rot / 2
             image = Image.new("RGBA", CANVAS_SIZE, (0, 0, 0, 0))
             draw = ImageDraw.Draw(image)
@@ -104,14 +103,14 @@ def main():
                 )
             for level in range(1, 11):
                 n = ncircles(level * OUTER_RADIUS * 2 + ADJUSTMENT, OUTER_RADIUS)
-                print(f"Level {level}: {n} circles would fit.")
+                #print(f"Level {level}: {n} circles would fit.")
                 cnt = 0
                 rotation = 0.0
                 while rotation < 360.0:
                     red_ring(level=level, rotation=radians(rotation), adj=radians(add_rot_f / level))
                     rotation += 360.0 / n
                     cnt += 1
-                print(f"Created {cnt} circles.")
+                #print(f"Created {cnt} circles.")
 
             filename = f"red_ring_{add_rot:06d}.png"
             image.save(filename, compress_level=1)
