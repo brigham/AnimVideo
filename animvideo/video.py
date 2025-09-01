@@ -3,15 +3,16 @@ import abc
 import subprocess
 from typing import Tuple
 from PIL import Image
+from animvideo.image import Img
 
-class AbstractVideoProducer:
+class AbstractVideoProducer(abc.ABC):
     def __init__(self, output_path: str, size: Tuple[int, int], fps: int):
         self.output_path = output_path
         self.size = size
         self.fps = fps
 
     @abc.abstractmethod
-    def add_frame(self, frame: Image.Image, number: int):
+    def add_frame(self, frame: Img, number: int):
         pass
 
     @abc.abstractmethod
@@ -22,7 +23,7 @@ class NoopProducer(AbstractVideoProducer):
     def __init__(self):
         super().__init__("", (0, 0), 0)
 
-    def add_frame(self, frame: Image.Image, number: int):
+    def add_frame(self, frame: Img, number: int):
         pass
 
     def finalize(self):
@@ -33,8 +34,8 @@ class GlobVideoProducer(AbstractVideoProducer):
         super().__init__(output_path, size, fps)
         self.prefix = prefix
 
-    def add_frame(self, frame: Image.Image, number: int):
-        frame.save(f"{self.prefix}_{number:06d}.png", compress_level=1)
+    def add_frame(self, frame: Img, number: int):
+        frame.save(f"{self.prefix}_{number:06d}.png")
 
     def finalize(self):
         stream = ffmpeg.input('red_ring_*.png', pattern_type='glob', framerate=self.fps).filter('scale', self.size[0] // 2, -1)
@@ -71,14 +72,11 @@ class FFmpegVideoProducer(AbstractVideoProducer):
         # Start the FFmpeg subprocess with a pipe to its stdin
         self.process = subprocess.Popen(command, stdin=subprocess.PIPE)
 
-    def add_frame(self, frame: Image.Image, number: int):
+    def add_frame(self, frame: Img, number: int):
         """
         Adds a single Pillow image frame to the video stream.
         The frame must be in 'RGB' mode and match the specified size.
         """
-        if frame.mode != 'RGB':
-            frame = frame.convert('RGB')
-
         # Convert the Pillow image to raw bytes and write to the pipe
         if not self.process.stdin:
             raise ValueError("Video stream is not initialized.")

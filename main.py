@@ -8,6 +8,7 @@ from typing import Tuple, List
 from dataclasses import dataclass, field
 import argparse
 from animvideo.video import NoopProducer, GlobVideoProducer, FFmpegVideoProducer
+from animvideo.image import empty, Img
 
 # https://youtu.be/a4Yge_o7XLg?si=YYmPQBmLYXq4cSoY at 1:10:30
 
@@ -85,7 +86,7 @@ class Config:
         return self.END_FRAME - self.START_FRAME
 
 
-def draw_ring(draw: ImageDraw.ImageDraw, color, inner_radius: int, outer_radius: int, center_x: int, center_y: int, rotation: float = 0.0):
+def draw_ring(draw: Img, color, inner_radius: int, outer_radius: int, center_x: int, center_y: int, rotation: float = 0.0):
     """
     Draws a ring with a transparent center using the Pillow library.
 
@@ -97,9 +98,6 @@ def draw_ring(draw: ImageDraw.ImageDraw, color, inner_radius: int, outer_radius:
         center_x (int): The x-coordinate of the center of the ring.
         center_y (int): The y-coordinate of the center of the ring.
         rotation (float): The rotation angle of the ring in radians around the center of the image.
-
-    Returns:
-        PIL.Image.Image: A Pillow image object containing the drawn ring.
     """
     if not isinstance(inner_radius, int) or not isinstance(outer_radius, int):
         raise TypeError("Radii must be integers.")
@@ -108,13 +106,10 @@ def draw_ring(draw: ImageDraw.ImageDraw, color, inner_radius: int, outer_radius:
     if inner_radius >= outer_radius:
         raise ValueError("Inner radius must be less than the outer radius.")
 
-    # Create a new image with a transparent background (RGBA mode)
-    image = draw._image
-
     # Calculate bounding box coordinates
     center = (center_x, center_y)
     if rotation != 0.0:
-        offset = (image.size[0] // 2, image.size[1] // 2)
+        offset = (draw.size[0] // 2, draw.size[1] // 2)
         center = (center[0] - offset[0], center[1] - offset[1])
         sine = math.sin(rotation)
         cosine = math.cos(rotation)
@@ -177,8 +172,7 @@ def create_video(config: Config):
         print(f"Frames: {start_frame} to {end_frame}")
         for add_rot in range(start_frame, end_frame, config.SKIP):
             add_rot_f = add_rot / 2
-            image = Image.new("RGB", config.CANVAS_SIZE, (0, 0, 0))
-            draw = ImageDraw.Draw(image)
+            image = empty(config.CANVAS_SIZE, (0, 0, 0))
             def red_ring(level, rotation, adj):
                 rotprime = rotation * 3 % (2 * math.pi)
                 quadnum = int(rotation * 3 / (math.pi / 2))
@@ -192,7 +186,7 @@ def create_video(config: Config):
                 else:
                     quadrant = config.COLORS1[level % len(config.COLORS1)]
                 draw_ring(
-                    draw, color=quadrant,
+                    image, color=quadrant,
                     inner_radius=config.INNER_RADIUS, outer_radius=config.OUTER_RADIUS,
                     center_x=config.CANVAS_SIZE[0] // 2 - level * config.OUTER_RADIUS * 2 - config.ADJUSTMENT, center_y=config.CANVAS_SIZE[1] // 2,
                     rotation=rotation + adj
@@ -208,8 +202,7 @@ def create_video(config: Config):
                     cnt += 1
                 #print(f"Created {cnt} circles.")
 
-            blur_image = image.filter(ImageFilter.GaussianBlur(radius=15))
-            image = ImageChops.add(image, blur_image)
+            image.glow()
             if add_rot % 100 == 0:
                 thumb_producer.add_frame(image, add_rot)
             producer.add_frame(image, add_rot)
