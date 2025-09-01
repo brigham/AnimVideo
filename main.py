@@ -1,11 +1,95 @@
+from abc import abstractmethod
 from PIL import Image, ImageDraw
 import math
 import ffmpeg
 import os
 import glob
 import itertools
+import abc
+from typing import Tuple
+import subprocess
 
 # https://youtu.be/a4Yge_o7XLg?si=YYmPQBmLYXq4cSoY at 1:10:30
+
+class AbstractVideoProducer:
+    def __init__(self, output_path: str, size: Tuple[int, int], fps: int):
+        self.output_path = output_path
+        self.size = size
+        self.fps = fps
+
+    @abc.abstractmethod
+    def add_frame(self, frame: Image.Image, number: int):
+        pass
+
+    @abc.abstractmethod
+    def finalize(self):
+        pass
+
+class GlobVideoProducer(AbstractVideoProducer):
+    def __init__(self, output_path: str, size: Tuple[int, int], fps: int, prefix: str):
+        super().__init__(output_path, size, fps)
+        self.prefix = prefix
+
+    def add_frame(self, frame: Image.Image, number: int):
+        frame.save(f"{self.prefix}_{number:06d}.png", compress_level=1)
+
+    def finalize(self):
+        stream = ffmpeg.input('red_ring_*.png', pattern_type='glob', framerate=self.fps).filter('scale', self.size[0] // 2, -1)
+        stream.output(self.output_path, pix_fmt='yuv420p', sws_flags='lanczos').overwrite_output().run()
+        print("Video created successfully!")
+
+class FFmpegVideoProducer(AbstractVideoProducer):
+    """
+    A video producer that creates a video by piping raw image frames
+    directly to an FFmpeg subprocess, avoiding intermediate files.
+    """
+    def __init__(self, output_path: str, size: Tuple[int, int], fps: int):
+        super().__init__(output_path, size, fps)
+        width, height = self.size
+
+        # The FFmpeg command to receive raw video data from stdin
+        command = [
+            'ffmpeg',
+            '-y',  # Overwrite output file
+            '-f', 'rawvideo',
+            '-vcodec', 'rawvideo',
+            '-s', f'{width}x{height}',
+            '-pix_fmt', 'rgb24',
+            '-r', str(self.fps),
+            '-i', '-',  # Input from stdin
+            '-c:v', 'libx264',
+            # scale down
+            '-vf', f'scale={width // 2}:{height // 2}',
+            '-sws_flags', 'lanczos',
+            '-pix_fmt', 'yuv420p',
+            self.output_path
+        ]
+
+        # Start the FFmpeg subprocess with a pipe to its stdin
+        self.process = subprocess.Popen(command, stdin=subprocess.PIPE)
+
+    def add_frame(self, frame: Image.Image, number: int):
+        """
+        Adds a single Pillow image frame to the video stream.
+        The frame must be in 'RGB' mode and match the specified size.
+        """
+        if frame.mode != 'RGB':
+            frame = frame.convert('RGB')
+
+        # Convert the Pillow image to raw bytes and write to the pipe
+        if not self.process.stdin:
+            raise ValueError("Video stream is not initialized.")
+        self.process.stdin.write(frame.tobytes())
+
+    def finalize(self):
+        """
+        Closes the video stream and waits for FFmpeg to finish processing.
+        """
+        if self.process.stdin:
+            self.process.stdin.close()
+        self.process.wait()
+        print(f"Video '{self.output_path}' finalized successfully. ✨")
+
 
 def draw_ring(draw: ImageDraw.ImageDraw, color, inner_radius: int, outer_radius: int, center_x: int, center_y: int, rotation: float = 0.0):
     """
@@ -84,17 +168,14 @@ LEVELS = 53
 COLORS0 = ['blue', 'green', 'yellow', 'red']
 COLORS1 = ['cyan', 'yellow', 'orange', 'magenta']
 
-def generate_video(fps, canvas_size):
-    stream = ffmpeg.input('red_ring_*.png', pattern_type='glob', framerate=fps).filter('scale', canvas_size[0] // 2, -1)
-    stream.output("output.mp4", pix_fmt='yuv420p', sws_flags='lanczos').overwrite_output().run()
-    print("Video created successfully!")
-
 def main():
     # Delete old png files
     for f in itertools.chain(glob.glob('red_ring*.png'), glob.glob('red_ring*.bmp')):
         os.remove(f)
     try:
         # rpm = 100
+        # producer = GlobVideoProducer("output.mp4", CANVAS_SIZE, FPS, "red_ring")
+        producer = FFmpegVideoProducer("output.mp4", CANVAS_SIZE, FPS)
         for add_rot in range(0, FRAMES, SKIP):
             add_rot_f = add_rot / 2
             image = Image.new("RGBA", CANVAS_SIZE, (0, 0, 0, 0))
@@ -128,10 +209,8 @@ def main():
                     cnt += 1
                 #print(f"Created {cnt} circles.")
 
-            filename = f"red_ring_{add_rot:06d}.png"
-            image.save(filename, compress_level=1)
-            print(f"Ring image '{filename}' created successfully!")
-        generate_video(FPS, CANVAS_SIZE)
+            producer.add_frame(image, add_rot)
+        producer.finalize()
     except Exception as e:
         print(f"An error occurred: {e}")
 
