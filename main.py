@@ -144,7 +144,7 @@ def draw_ring(draw: ImageDraw.ImageDraw, color, inner_radius: int, outer_radius:
     draw.ellipse(outer_bbox, fill=color)
 
     # Draw the inner circle with a transparent fill to create the hole
-    draw.ellipse(inner_bbox, fill=(0, 0, 0, 0))
+    draw.ellipse(inner_bbox, fill=(0, 0, 0))
 
 def radians(degrees):
     return degrees * math.pi / 180
@@ -161,7 +161,7 @@ OUTER_RADIUS = 40 // SCALE_DOWN
 INNER_RADIUS = 30 // SCALE_DOWN
 CANVAS_SIZE = (3840 * 2 // SCALE_DOWN, 2160 * 2 // SCALE_DOWN)
 ADJUSTMENT = 25
-SECONDS = 20
+SECONDS = minutes(1)
 SKIP = 18
 FRAMES = int(SECONDS * FPS * SKIP)
 LEVELS = 53
@@ -174,11 +174,11 @@ def main():
         os.remove(f)
     try:
         # rpm = 100
-        # producer = GlobVideoProducer("output.mp4", CANVAS_SIZE, FPS, "red_ring")
+        thumb_producer = GlobVideoProducer("thumbnails.mp4", CANVAS_SIZE, FPS, "red_ring")
         producer = FFmpegVideoProducer("output.mp4", CANVAS_SIZE, FPS)
         for add_rot in range(0, FRAMES, SKIP):
             add_rot_f = add_rot / 2
-            image = Image.new("RGBA", CANVAS_SIZE, (0, 0, 0, 0))
+            image = Image.new("RGB", CANVAS_SIZE, (0, 0, 0))
             draw = ImageDraw.Draw(image)
             def red_ring(level, rotation, adj):
                 rotprime = rotation * 3 % (2 * math.pi)
@@ -209,6 +209,8 @@ def main():
                     cnt += 1
                 #print(f"Created {cnt} circles.")
 
+            if add_rot % 100 == 0:
+                thumb_producer.add_frame(image, add_rot)
             producer.add_frame(image, add_rot)
         producer.finalize()
     except Exception as e:
