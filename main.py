@@ -1,5 +1,4 @@
-from abc import abstractmethod
-from PIL import Image, ImageDraw
+from PIL import Image, ImageChops, ImageDraw, ImageFilter
 import math
 import ffmpeg
 import os
@@ -156,12 +155,12 @@ def minutes(m):
     return m * 60
 
 FPS = 60
-SCALE_DOWN = 2
+SCALE_DOWN = 1
 OUTER_RADIUS = 40 // SCALE_DOWN
 INNER_RADIUS = 30 // SCALE_DOWN
 CANVAS_SIZE = (3840 * 2 // SCALE_DOWN, 2160 * 2 // SCALE_DOWN)
 ADJUSTMENT = 25
-SECONDS = minutes(1)
+SECONDS = 2
 SKIP = 18
 FRAMES = int(SECONDS * FPS * SKIP)
 LEVELS = 53
@@ -209,6 +208,8 @@ def main():
                     cnt += 1
                 #print(f"Created {cnt} circles.")
 
+            blur_image = image.filter(ImageFilter.GaussianBlur(radius=15))
+            image = ImageChops.add(image, blur_image)
             if add_rot % 100 == 0:
                 thumb_producer.add_frame(image, add_rot)
             producer.add_frame(image, add_rot)
