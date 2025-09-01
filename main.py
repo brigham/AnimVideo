@@ -75,8 +75,9 @@ INNER_RADIUS = 30 // SCALE_DOWN
 CANVAS_SIZE = (3840 * 2 // SCALE_DOWN, 2160 * 2 // SCALE_DOWN)
 ADJUSTMENT = 25
 SECONDS = 20
-SKIP = 33
+SKIP = 9
 FRAMES = SECONDS * FPS * SKIP
+LEVELS = 53
 
 def generate_video(fps, canvas_size):
     stream = ffmpeg.input('red_ring_*.png', pattern_type='glob', framerate=fps).filter('scale', canvas_size[0] // 2, -1)
@@ -94,6 +95,10 @@ def main():
             image = Image.new("RGBA", CANVAS_SIZE, (0, 0, 0, 0))
             draw = ImageDraw.Draw(image)
             def red_ring(level, rotation, adj):
+                sine = abs(math.sin(rotation))
+                cosine = abs(math.cos(rotation))
+                if sine > 0.98 or cosine > 0.98:
+                    return
                 quadrant = 'red' if rotation < math.pi / 2 else 'blue' if rotation < math.pi else 'green' if rotation < 3 * math.pi / 2 else 'yellow'
                 draw_ring(
                     draw, color=quadrant,
@@ -101,13 +106,13 @@ def main():
                     center_x=CANVAS_SIZE[0] // 2 - level * OUTER_RADIUS * 2 - ADJUSTMENT, center_y=CANVAS_SIZE[1] // 2,
                     rotation=rotation + adj
                 )
-            for level in range(1, 11):
+            for level in range(1, LEVELS):
                 n = ncircles(level * OUTER_RADIUS * 2 + ADJUSTMENT, OUTER_RADIUS)
                 #print(f"Level {level}: {n} circles would fit.")
                 cnt = 0
                 rotation = 0.0
                 while rotation < 360.0:
-                    red_ring(level=level, rotation=radians(rotation), adj=radians(add_rot_f / level))
+                    red_ring(level=level, rotation=radians(rotation), adj=radians(add_rot_f * (1.0 - level / LEVELS)))
                     rotation += 360.0 / n
                     cnt += 1
                 #print(f"Created {cnt} circles.")
