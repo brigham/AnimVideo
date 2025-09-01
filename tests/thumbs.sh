@@ -9,7 +9,7 @@ then
     rm red_ring_*.png
 fi
 
-uv run main.py --end-frame=1801 --scale-down=10 --mode=thumbs
+uv run main.py --end-frame=1801 --scale-down=5 --mode=thumbs
 
 for file in tests/goldens/red_ring_*.png; do
     cmp "$(basename "$file")" "$file"

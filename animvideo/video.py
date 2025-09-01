@@ -2,7 +2,6 @@ import ffmpeg
 import abc
 import subprocess
 from typing import Tuple
-from PIL import Image
 from animvideo.image import Img
 
 class AbstractVideoProducer(abc.ABC):
