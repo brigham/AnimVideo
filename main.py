@@ -1,13 +1,11 @@
 from enum import Enum
 import math
 import os
-import glob
-import itertools
 from typing import Tuple, List
 from dataclasses import dataclass, field
 import argparse
 from animvideo.video import NoopProducer, GlobVideoProducer, FFmpegVideoProducer
-from animvideo.image import empty
+from animvideo.image import empty, set_use_opencv_for_glow, set_implementation
 from PIL import ImageColor
 
 # https://youtu.be/a4Yge_o7XLg?si=YYmPQBmLYXq4cSoY at 1:10:30
@@ -30,20 +28,24 @@ def minutes(m):
 
 @dataclass
 class Config:
+    OUTPUT_DIR: str = 'output'
     FPS: int = 60
     SCALE_DOWN: int = 1
     OUTER_RADIUS_BASE: int = 40
     INNER_RADIUS_BASE: int = 30
     CANVAS_SIZE_BASE: Tuple[int, int] = (3840 * 2, 2160 * 2)
     ADJUSTMENT: int = 25
-    SECONDS: int = 10
-    SKIP: int = 18
+    SECONDS: int = 2
+    SKIP: int = 21
     LEVELS: int = 53
     START_FRAME_BASE: int = 0
     END_FRAME_BASE: int = -1
     MODE: Mode = Mode.FULL
     COLORS0_BASE: List[str|tuple[int, int, int]] = field(default_factory=lambda: ['blue', 'green', 'yellow', 'red'])
     COLORS1_BASE: List[str|tuple[int, int, int]] = field(default_factory=lambda: ['cyan', 'yellow', 'orange', 'magenta'])
+    IMAGE_IMPL: str = 'pygame'
+    GLOW_COMBO: bool = True
+    GLOW_RADIUS_BASE: int = 180
 
     @property
     def OUTER_RADIUS(self) -> int:
@@ -96,6 +98,14 @@ class Config:
     def COLORS1(self) -> list[tuple[int, int, int]]:
         return [ImageColor.getrgb(color)[:3] if isinstance(color, str) else color for color in self.COLORS1_BASE]
 
+    @property
+    def GLOW_RADIUS(self) -> int:
+        scaled = self.GLOW_RADIUS_BASE // self.SCALE_DOWN
+        return scaled + 1 if scaled % 2 == 0 else scaled
+
+    def output_path(self, filename: str) -> str:
+        return os.path.join(self.OUTPUT_DIR, filename)
+
 
 def radians(degrees):
     return degrees * math.pi / 180
@@ -105,27 +115,40 @@ def ncircles(disc_radius, radius):
 
 def parse_args() -> Config:
     parser = argparse.ArgumentParser(description='Create a video with a rotating ring.')
+    parser.add_argument('--output', type=str, default='output', help='Output directory.')
     parser.add_argument('--mode', type=Mode, default=Mode.FULL, choices=[mode.value for mode in Mode], help='Mode of operation')
     parser.add_argument('--start-frame', type=int, default=0, help='Start frame (inclusive)')
     parser.add_argument('--end-frame', type=int, default=-1, help='End frame (exclusive, -1 is default)')
     parser.add_argument('--scale-down', type=int, default=1, help='Scale down factor')
+    parser.add_argument('--glow-combo', type=bool, default=False, help='Enable glow combo (pygame only)')
+    parser.add_argument('--glow-radius', type=int, default=79, help='Glow radius')
+    parser.add_argument('--image-impl', type=str, default='pygame', choices=['pillow', 'pygame', 'opencv'], help='Image implementation')
+    parser.add_argument('--skip', type=int, default=9, help='Skip frames')
 
     parsed = parser.parse_args()
     return Config(
+        OUTPUT_DIR=parsed.output,
         MODE=parsed.mode,
         START_FRAME_BASE=parsed.start_frame,
         END_FRAME_BASE=parsed.end_frame,
-        SCALE_DOWN=parsed.scale_down
+        SCALE_DOWN=parsed.scale_down,
+        GLOW_COMBO=parsed.glow_combo,
+        GLOW_RADIUS_BASE=parsed.glow_radius,
+        IMAGE_IMPL=parsed.image_impl,
+        SKIP=parsed.skip
     )
 
 def create_video(config: Config):
     print(f"Creating video with {config}")
+    if config.GLOW_COMBO:
+        set_use_opencv_for_glow(True)
+    set_implementation(config.IMAGE_IMPL)
     try:
         thumb_producer = producer = NoopProducer()
         if config.MODE.enable_thumbs:
-            thumb_producer = GlobVideoProducer("thumbnails.mp4", config.CANVAS_SIZE, config.FPS, "red_ring")
+            thumb_producer = GlobVideoProducer(config.output_path("thumbnails.mp4"), config.CANVAS_SIZE, config.FPS, config.output_path("red_ring"))
         if config.MODE.enable_video:
-            producer = FFmpegVideoProducer("output.mp4", config.CANVAS_SIZE, config.FPS)
+            producer = FFmpegVideoProducer(config.output_path("output.mp4"), config.CANVAS_SIZE, config.FPS)
         start_frame = config.START_FRAME
         end_frame = config.END_FRAME
         print(f"Frames: {start_frame} to {end_frame}")
@@ -166,7 +189,7 @@ def create_video(config: Config):
                     cnt += 1
                 #print(f"Created {cnt} circles.")
 
-            image.glow()
+            image.glow(radius=config.GLOW_RADIUS)
             if add_rot % 100 == 0:
                 thumb_producer.add_frame(image, add_rot)
             producer.add_frame(image, add_rot)
@@ -178,9 +201,13 @@ def create_video(config: Config):
 
 def main():
     config = parse_args()
-    # Delete old png files
-    for f in itertools.chain(glob.glob('red_ring*.png'), glob.glob('red_ring*.bmp')):
-        os.remove(f)
+    # Remove old output files.
+    if os.path.exists(config.OUTPUT_DIR) and not os.path.isdir(config.OUTPUT_DIR):
+        raise ValueError(f"Output directory '{config.OUTPUT_DIR}' is not a directory.")
+    if not os.path.exists(config.OUTPUT_DIR):
+        os.makedirs(config.OUTPUT_DIR)
+    for f in os.listdir(config.OUTPUT_DIR):
+        os.remove(os.path.join(config.OUTPUT_DIR, f))
     create_video(config)
 
 if __name__ == "__main__":
