@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 import argparse
 from animvideo.video import NoopProducer, GlobVideoProducer, FFmpegVideoProducer
 from animvideo.image import empty
+from PIL import ImageColor
 
 # https://youtu.be/a4Yge_o7XLg?si=YYmPQBmLYXq4cSoY at 1:10:30
 
@@ -24,6 +25,9 @@ class Mode(str, Enum):
     def enable_thumbs(self) -> bool:
         return self != Mode.VIDEO
 
+def minutes(m):
+    return m * 60
+
 @dataclass
 class Config:
     FPS: int = 60
@@ -32,14 +36,14 @@ class Config:
     INNER_RADIUS_BASE: int = 30
     CANVAS_SIZE_BASE: Tuple[int, int] = (3840 * 2, 2160 * 2)
     ADJUSTMENT: int = 25
-    SECONDS: int = 2
+    SECONDS: int = 10
     SKIP: int = 18
     LEVELS: int = 53
     START_FRAME_BASE: int = 0
     END_FRAME_BASE: int = -1
     MODE: Mode = Mode.FULL
-    COLORS0: List[str] = field(default_factory=lambda: ['blue', 'green', 'yellow', 'red'])
-    COLORS1: List[str] = field(default_factory=lambda: ['cyan', 'yellow', 'orange', 'magenta'])
+    COLORS0_BASE: List[str|tuple[int, int, int]] = field(default_factory=lambda: ['blue', 'green', 'yellow', 'red'])
+    COLORS1_BASE: List[str|tuple[int, int, int]] = field(default_factory=lambda: ['cyan', 'yellow', 'orange', 'magenta'])
 
     @property
     def OUTER_RADIUS(self) -> int:
@@ -84,15 +88,20 @@ class Config:
     def DURATION(self) -> float:
         return self.END_FRAME - self.START_FRAME
 
+    @property
+    def COLORS0(self) -> list[tuple[int, int, int]]:
+        return [ImageColor.getrgb(color)[:3] if isinstance(color, str) else color for color in self.COLORS0_BASE]
+
+    @property
+    def COLORS1(self) -> list[tuple[int, int, int]]:
+        return [ImageColor.getrgb(color)[:3] if isinstance(color, str) else color for color in self.COLORS1_BASE]
+
 
 def radians(degrees):
     return degrees * math.pi / 180
 
 def ncircles(disc_radius, radius):
     return math.floor(math.pi / math.asin(radius / disc_radius))
-
-def minutes(m):
-    return m * 60
 
 def parse_args() -> Config:
     parser = argparse.ArgumentParser(description='Create a video with a rotating ring.')
@@ -135,6 +144,12 @@ def create_video(config: Config):
                     quadrant = config.COLORS0[level % len(config.COLORS0)]
                 else:
                     quadrant = config.COLORS1[level % len(config.COLORS1)]
+                if sine > 0.93 or cosine > 0.93:
+                    # Darken the color
+                    quadrant = (quadrant[0] * 0.15, quadrant[1] * 0.25, quadrant[2] * 0.25)
+                elif sine > 0.87 or cosine > 0.87:
+                    quadrant = (quadrant[0] * 0.25, quadrant[1] * 0.35, quadrant[2] * 0.35)
+
                 image.ring(color=quadrant,
                     inner_radius=config.INNER_RADIUS, outer_radius=config.OUTER_RADIUS,
                     center_x=config.CANVAS_SIZE[0] // 2 - level * config.OUTER_RADIUS * 2 - config.ADJUSTMENT, center_y=config.CANVAS_SIZE[1] // 2,

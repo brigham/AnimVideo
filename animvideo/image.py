@@ -1,5 +1,5 @@
 import abc
-from PIL import Image, ImageDraw, ImageFilter, ImageChops, ImageColor
+from PIL import Image, ImageDraw, ImageFilter, ImageChops
 import cv2
 import numpy as np
 import math
@@ -159,9 +159,7 @@ class _OpenCVImage(Img):
         flipped = self._image.shape[:2]
         return flipped[::-1]
 
-    def ring(self, color, inner_radius: int, outer_radius: int, center_x: int, center_y: int, rotation: float = 0.0):
-        if isinstance(color, str):
-            color = ImageColor.getrgb(color)
+    def ring(self, color: tuple[int, int, int], inner_radius: int, outer_radius: int, center_x: int, center_y: int, rotation: float = 0.0):
         color_bgr = (color[2], color[1], color[0])
 
         center = (center_x, center_y)
@@ -176,15 +174,13 @@ class _OpenCVImage(Img):
         adjusted_radius = outer_radius - thickness // 2 if thickness > 1 else outer_radius
         cv2.circle(self._image, center, adjusted_radius, color_bgr, thickness)
 
-    def ellipse(self, bbox: tuple[int, int, int, int], fill: str|tuple[int, int, int]|tuple[int, int, int, int] = (0, 0, 0)):
+    def ellipse(self, bbox: tuple[int, int, int, int], fill: tuple[int, int, int]|tuple[int, int, int, int] = (0, 0, 0)):
         # 1. Convert Pillow's bounding box to OpenCV's center and axes
         x0, y0, x1, y1 = bbox
         center = (int((x0 + x1) / 2), int((y0 + y1) / 2))
         axes = (int((x1 - x0) / 2), int((y1 - y0) / 2))
 
         # 2. Convert RGB color to OpenCV's BGR format
-        if isinstance(fill, str):
-            fill = ImageColor.getrgb(fill)
         color_bgr = (fill[2], fill[1], fill[0])
 
         # Is this a circle?
@@ -194,7 +190,7 @@ class _OpenCVImage(Img):
             cv2.ellipse(self._image, center, axes, 0, 0, 360, color_bgr, thickness=-1)
 
     def glow(self):
-        blur_image = cv2.GaussianBlur(self._image, (15, 15), 0)
+        blur_image = cv2.GaussianBlur(self._image, (79, 79), 0)
         self._image = cv2.add(self._image, blur_image)
 
 def empty(size: tuple[int, int], color: tuple[int, int, int] = (0, 0, 0)) -> Img:
