@@ -114,16 +114,18 @@ def ncircles(disc_radius, radius):
     return math.floor(math.pi / math.asin(radius / disc_radius))
 
 def parse_args() -> Config:
+    default_values = Config()
+
     parser = argparse.ArgumentParser(description='Create a video with a rotating ring.')
-    parser.add_argument('--output', type=str, default='output', help='Output directory.')
-    parser.add_argument('--mode', type=Mode, default=Mode.FULL, choices=[mode.value for mode in Mode], help='Mode of operation')
-    parser.add_argument('--start-frame', type=int, default=0, help='Start frame (inclusive)')
-    parser.add_argument('--end-frame', type=int, default=-1, help='End frame (exclusive, -1 is default)')
-    parser.add_argument('--scale-down', type=int, default=1, help='Scale down factor')
-    parser.add_argument('--glow-combo', type=bool, default=False, help='Enable glow combo (pygame only)')
-    parser.add_argument('--glow-radius', type=int, default=79, help='Glow radius')
-    parser.add_argument('--image-impl', type=str, default='pygame', choices=['pillow', 'pygame', 'opencv'], help='Image implementation')
-    parser.add_argument('--skip', type=int, default=9, help='Skip frames')
+    parser.add_argument('--output', type=str, default=default_values.OUTPUT_DIR, help='Output directory.')
+    parser.add_argument('--mode', type=Mode, default=default_values.MODE, choices=[mode.value for mode in Mode], help='Mode of operation')
+    parser.add_argument('--start-frame', type=int, default=default_values.START_FRAME_BASE, help='Start frame (inclusive)')
+    parser.add_argument('--end-frame', type=int, default=default_values.END_FRAME_BASE, help='End frame (exclusive, -1 is default)')
+    parser.add_argument('--scale-down', type=int, default=default_values.SCALE_DOWN, help='Scale down factor')
+    parser.add_argument('--glow-combo', type=bool, default=default_values.GLOW_COMBO, help='Enable glow combo (pygame only)')
+    parser.add_argument('--glow-radius', type=int, default=default_values.GLOW_RADIUS_BASE, help='Glow radius')
+    parser.add_argument('--image-impl', type=str, default=default_values.IMAGE_IMPL, choices=['pillow', 'pygame', 'opencv'], help='Image implementation')
+    parser.add_argument('--skip', type=int, default=default_values.SKIP, help='Skip frames')
 
     parsed = parser.parse_args()
     return Config(
@@ -156,22 +158,15 @@ def create_video(config: Config):
             add_rot_f = add_rot / 2
             image = empty(config.CANVAS_SIZE, (0, 0, 0))
             def red_ring(level, rotation, adj):
-                rotprime = rotation * 3 % (2 * math.pi)
+                rotprime = rotation * 6 % (2 * math.pi)
                 quadnum = int(rotation * 3 / (math.pi / 2))
-                sine = abs(math.sin(rotprime))
                 cosine = abs(math.cos(rotprime))
-                if sine > 0.98 or cosine > 0.98:
-                    return
-                # quadrant = 'red' if rotprime < math.pi / 2 else 'blue' if rotprime < math.pi else 'green' if rotprime < 3 * math.pi / 2 else 'yellow'
                 if quadnum % 3 == 0:
                     quadrant = config.COLORS0[level % len(config.COLORS0)]
                 else:
                     quadrant = config.COLORS1[level % len(config.COLORS1)]
-                if sine > 0.93 or cosine > 0.93:
-                    # Darken the color
-                    quadrant = (quadrant[0] * 0.15, quadrant[1] * 0.25, quadrant[2] * 0.25)
-                elif sine > 0.87 or cosine > 0.87:
-                    quadrant = (quadrant[0] * 0.25, quadrant[1] * 0.35, quadrant[2] * 0.35)
+                mult = 1 - math.pow(cosine, 2)
+                quadrant = (quadrant[0] * mult, quadrant[1] * mult, quadrant[2] * mult)
 
                 image.ring(color=quadrant,
                     inner_radius=config.INNER_RADIUS, outer_radius=config.OUTER_RADIUS,
