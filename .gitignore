@@ -11,3 +11,4 @@ wheels/
 *.png
 .DS_Store
 *.mp4
+output/
