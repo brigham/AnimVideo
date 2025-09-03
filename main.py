@@ -35,7 +35,7 @@ class Config:
     INNER_RADIUS_BASE: int = 30
     CANVAS_SIZE_BASE: Tuple[int, int] = (3840 * 2, 2160 * 2)
     ADJUSTMENT: int = 25
-    SECONDS: int = minutes(1)
+    SECONDS: int = 1
     SKIP: int = 21
     LEVELS: int = 53
     START_FRAME_BASE: int = 0
