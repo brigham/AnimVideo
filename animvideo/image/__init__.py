@@ -14,7 +14,11 @@ def _import_PygameImage() -> Type[Img]:
     from animvideo.image._pygame import _PygameImage
     return _PygameImage
 
-_thunk: Callable[[], Type[Img]] = _import_PygameImage
+def _import_Panda3dImage() -> Type[Img]:
+    from animvideo.image._panda3d import _Panda3dImage
+    return _Panda3dImage
+
+_thunk: Callable[[], Type[Img]] = _import_Panda3dImage
 
 def set_implementation(name: str):
     global _thunk
@@ -24,6 +28,8 @@ def set_implementation(name: str):
         _thunk = _import_PygameImage
     elif name == 'pillow':
         _thunk = _import_PillowImage
+    elif name == 'panda3d':
+        _thunk = _import_Panda3dImage
     else:
         raise ValueError(f"Unknown implementation: {name}")
 
