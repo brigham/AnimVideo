@@ -1,5 +1,6 @@
 import abc
 from animvideo.config import Config
+from typing import Callable
 
 class Scene(abc.ABC):
     def __init__(self, config: Config):
@@ -26,4 +27,8 @@ class Scene(abc.ABC):
 
     @abc.abstractmethod
     def tobytes(self) -> bytes:
+        ...
+
+    @abc.abstractmethod
+    def consume_bytes(self, consumer: Callable[[bytes], int]):
         ...

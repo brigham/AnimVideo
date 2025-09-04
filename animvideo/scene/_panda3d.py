@@ -18,6 +18,7 @@ from panda3d.core import (
 )
 from direct.showbase.ShowBase import ShowBase
 import math
+from typing import Callable
 
 _radians = math.radians
 
@@ -162,6 +163,26 @@ class Panda3dScene(_scene.Scene):
         data = bytes(img)
 
         return self._rearrange(data)
+
+    def consume_bytes(self, consumer: Callable[[bytes], int]):
+        base = self._base
+        base.graphicsEngine.render_frame()
+        img = self._tex.get_ram_image_as("RGB")
+        if not img:
+            raise RuntimeError("Texture has no RAM image")
+        data = bytes(img)
+
+        w, h = self._size
+        row_bytes = w * 3
+        for y in reversed(range(h)):
+            row = data[y*row_bytes:(y+1)*row_bytes]
+            pos = 0
+            while pos < len(row):
+                if pos == 0:
+                    proc = consumer(row)
+                else:
+                    proc = consumer(row[pos:])
+                pos += proc
 
     def save(self, filename: str):
         base = self._base

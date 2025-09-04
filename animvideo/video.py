@@ -81,7 +81,10 @@ class FFmpegVideoProducer(AbstractVideoProducer):
         # Convert the Pillow image to raw bytes and write to the pipe
         if not self.process.stdin:
             raise ValueError("Video stream is not initialized.")
-        self.process.stdin.write(frame.tobytes())
+        if isinstance(frame, Img):
+            self.process.stdin.write(frame.tobytes())
+        else:
+            frame.consume_bytes(self.process.stdin.write)
 
     def finalize(self):
         """
