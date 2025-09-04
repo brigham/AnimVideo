@@ -127,6 +127,8 @@ class Panda3dScene(_scene.Scene):
                 red_ring(parent=orbital, level=level, rotation=_radians(rotation))
                 rotation += 360.0 / n
                 cnt += 1
+            orbital.flatten_strong()
+        self._scene.analyze()
 
         self._time = 0.0
 
