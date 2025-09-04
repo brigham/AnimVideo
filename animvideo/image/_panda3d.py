@@ -76,6 +76,15 @@ class _Panda3dImage(Img):
         # Tell the scene to be illuminated by this light
         self._scene.set_light(ambient_lnp)
 
+        format = GeomVertexFormat.get_v3c4()
+        self._batched_vdata = GeomVertexData('rings', format, Geom.UH_static)
+        self._batched_vertex = GeomVertexWriter(self._batched_vdata, 'vertex')
+        self._batched_color = GeomVertexWriter(self._batched_vdata, 'color')
+        self._batched_prim = GeomTriangles(Geom.UH_static)
+
+        self._nrings = 0
+
+
     @classmethod
     def empty(cls, size: tuple[int, int], color: tuple[int, int, int] = (0, 0, 0)) -> 'Img':
         return _Panda3dImage(size, color)
@@ -107,11 +116,11 @@ class _Panda3dImage(Img):
     def ring(self, color: tuple[int, int, int], inner_radius: int, outer_radius: int, center_x: int, center_y: int, rotation: float = 0.0):
         # Just draw a filled circle with outer_radius
         num_segments = 64
-        format = GeomVertexFormat.get_v3c4()
-        vdata = GeomVertexData('circle', format, Geom.UH_static)
+        # format = GeomVertexFormat.get_v3c4()
+        # vdata = GeomVertexData('circle', format, Geom.UH_static)
 
-        vertex = GeomVertexWriter(vdata, 'vertex')
-        vcolor = GeomVertexWriter(vdata, 'color')
+        # vertex = GeomVertexWriter(vdata, 'vertex')
+        # vcolor = GeomVertexWriter(vdata, 'color')
 
         image_center_x = self._size[0] // 2
         image_center_y = self._size[1] // 2
@@ -133,28 +142,23 @@ class _Panda3dImage(Img):
 
 
         # Center vertex
-        vertex.add_data3(center_x, center_y, 0)
-        vcolor.add_data4(color[0]/255.0, color[1]/255.0, color[2]/255.0, 1.0)
+        self._batched_vertex.add_data3(center_x, center_y, 0)
+        self._batched_color.add_data4(color[0]/255.0, color[1]/255.0, color[2]/255.0, 1.0)
 
         # Outer vertices
         for i in range(num_segments + 1):
             angle = (i / num_segments) * 2 * math.pi
             dx = outer_radius * math.cos(angle)
             dy = outer_radius * math.sin(angle)
-            vertex.add_data3(center_x + dx, center_y + dy, 0)
-            vcolor.add_data4(color[0]/255.0, color[1]/255.0, color[2]/255.0, 1.0)
+            self._batched_vertex.add_data3(center_x + dx, center_y + dy, 0)
+            self._batched_color.add_data4(color[0]/255.0, color[1]/255.0, color[2]/255.0, 1.0)
 
-        prim = GeomTriangles(Geom.UH_static)
-        for i in range(num_segments):
-            prim.add_vertices(0, i + 1, i + 2)
+        # prim = GeomTriangles(Geom.UH_static)
+        center_index = self._nrings * (num_segments + 2)
+        for i in range(center_index, center_index + num_segments):
+            self._batched_prim.add_vertices(center_index, i + 1, i + 2)
+        self._nrings += 1
 
-        geom = Geom(vdata)
-        geom.add_primitive(prim)
-
-        node = GeomNode('circle_node')
-        node.add_geom(geom)
-
-        self._scene.attach_new_node(node)
 
     def ellipse(self, bbox: tuple[int, int, int, int], fill: tuple[int, int, int] = (0, 0, 0)):
         x0, y0, x1, y1 = bbox
@@ -182,17 +186,23 @@ class _Panda3dImage(Img):
             vertex.add_data3(center_x + dx, center_y + dy, 0)
             vcolor.add_data4(fill[0]/255.0, fill[1]/255.0, fill[2]/255.0, 1.0)
 
-        prim = GeomTriangles(Geom.UH_static)
+        # prim = GeomTriangles(Geom.UH_static)
         for i in range(num_segments):
-            prim.add_vertices(0, i + 1, i + 2)
+            self._batched_prim.add_vertices(0, i + 1, i + 2)
 
-        geom = Geom(vdata)
-        geom.add_primitive(prim)
+        # geom = Geom(vdata)
+        # geom.add_primitive(prim)
 
-        node = GeomNode('ellipse_node')
+        # node = GeomNode('ellipse_node')
+        # node.add_geom(geom)
+
+        # self._scene.attach_new_node(node)
+
+    def glow(self, radius: int = 79):
+        geom = Geom(self._batched_vdata)
+        geom.add_primitive(self._batched_prim)
+
+        node = GeomNode('batched_rings')
         node.add_geom(geom)
 
         self._scene.attach_new_node(node)
-
-    def glow(self, radius: int = 79):
-        pass # No-op as requested
