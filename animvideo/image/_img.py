@@ -93,3 +93,6 @@ class Img(abc.ABC):
             radius (int): The radius of the glow effect, if applicable.
         """
         ...
+
+    def destroy(self):
+        pass

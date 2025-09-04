@@ -78,7 +78,7 @@ class _Panda3dImage(Img):
         self._scene.set_light(ambient_lnp)
 
 
-        def _make_ring_proto(segments=128):
+        def _make_ring_proto(segments=8):
             fmt = GeomVertexFormat.get_v3()  # no per-vertex colors; we'll set color per-instance
             vdata = GeomVertexData('unit_ring', fmt, Geom.UH_static)
             vdata.set_num_rows((segments + 1) * 2)
@@ -108,6 +108,9 @@ class _Panda3dImage(Img):
         return _Panda3dImage(size, color)
 
     def save(self, filename: str):
+        if not self._buffer:
+            # Already destroyed
+            return
         base = get_base()
         base.graphicsEngine.render_frame()
         self._buffer.save_screenshot(filename)
@@ -196,4 +199,27 @@ class _Panda3dImage(Img):
         self._scene.attach_new_node(node)
 
     def glow(self, radius: int = 79):
-        pass
+        print(self._scene.analyze())
+
+    def destroy(self):
+        """
+        Explicitly releases Panda3D and GPU resources used by this instance.
+        """
+        if self._buffer is None:
+            # Already destroyed
+            return
+
+        base = get_base()
+
+        # 1. Most importantly, remove the graphics buffer
+        base.graphicsEngine.remove_window(self._buffer)
+
+        # 2. Clean up the scene graph and camera
+        self._scene.remove_node()
+
+        # 3. Clear references to help the garbage collector
+        self._buffer = None
+        self._scene = None
+        self._camera = None
+        self._vdata = None # From the refactored code
+        self._prim = None  # From the refactored code
