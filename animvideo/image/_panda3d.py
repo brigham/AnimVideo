@@ -1,24 +1,23 @@
 from animvideo.image._img import Img
 from panda3d.core import (
     loadPrcFileData,
-    GraphicsPipe,
     GraphicsOutput,
+    GraphicsPipe,
     FrameBufferProperties,
     WindowProperties,
-    Texture,
     NodePath,
     Vec4,
     GeomVertexFormat,
     GeomVertexData,
     Geom,
     GeomTriangles,
-    GeomVertexWriter,
+    GeomVertexWriter,AmbientLight, VBase4,
     GeomNode,
-    OrthographicLens
+    OrthographicLens,
+    Texture,
 )
 from direct.showbase.ShowBase import ShowBase
 import math
-import os
 
 # Avoid writing a log file
 loadPrcFileData("", "notify-output /dev/null")
@@ -50,6 +49,10 @@ class _Panda3dImage(Img):
             fb_props, win_props,
             GraphicsPipe.BF_refuse_window,
         )
+        tex = Texture()
+        tex.setup_2d_texture(self._size[0], self._size[1], Texture.T_unsigned_byte, Texture.F_rgb8)
+        self._buffer.add_render_texture(tex, GraphicsOutput.RTMCopyRam)
+        self._tex = tex
 
         r, g, b = color
         self._buffer.set_clear_color(Vec4(r/255.0, g/255.0, b/255.0, 1.0))
@@ -66,6 +69,13 @@ class _Panda3dImage(Img):
         self._camera.set_pos(size[0]/2, size[1]/2, 1)
         self._camera.set_hpr(0, -90, 0)
 
+        ambient_light = AmbientLight("ambient light")
+        ambient_light.set_color(VBase4(0.6, 0.6, 0.6, 1.0)) # A dim gray light
+        ambient_lnp = self._scene.attach_new_node(ambient_light)
+
+        # Tell the scene to be illuminated by this light
+        self._scene.set_light(ambient_lnp)
+
     @classmethod
     def empty(cls, size: tuple[int, int], color: tuple[int, int, int] = (0, 0, 0)) -> 'Img':
         return _Panda3dImage(size, color)
@@ -78,8 +88,17 @@ class _Panda3dImage(Img):
     def tobytes(self) -> bytes:
         base = get_base()
         base.graphicsEngine.render_frame()
-        tex = self._buffer.get_texture()
-        return tex.get_ram_image_as("RGB")
+        img = self._tex.get_ram_image_as("RGB")
+        if not img:
+            raise RuntimeError("Texture has no RAM image")
+        data = bytes(img)
+
+        # Flip vertically to match conventional top-to-bottom rows
+        w, h = self._size
+        row_bytes = w * 3
+        return b''.join(
+            data[y*row_bytes:(y+1)*row_bytes] for y in reversed(range(h))
+        )
 
     @property
     def size(self) -> tuple[int, int]:
@@ -93,6 +112,25 @@ class _Panda3dImage(Img):
 
         vertex = GeomVertexWriter(vdata, 'vertex')
         vcolor = GeomVertexWriter(vdata, 'color')
+
+        image_center_x = self._size[0] // 2
+        image_center_y = self._size[1] // 2
+
+        cos_rot = math.cos(rotation)
+        sin_rot = math.sin(rotation)
+
+        # Translate point to origin
+        translated_x = center_x - image_center_x
+        translated_y = center_y - image_center_y
+
+        # Rotate point
+        rotated_x = translated_x * cos_rot - translated_y * sin_rot
+        rotated_y = translated_x * sin_rot + translated_y * cos_rot
+
+        # Translate point back
+        center_x = rotated_x + image_center_x
+        center_y = rotated_y + image_center_y
+
 
         # Center vertex
         vertex.add_data3(center_x, center_y, 0)

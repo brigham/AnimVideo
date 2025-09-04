@@ -124,7 +124,7 @@ def parse_args() -> Config:
     parser.add_argument('--scale-down', type=int, default=default_values.SCALE_DOWN, help='Scale down factor')
     parser.add_argument('--glow-combo', type=bool, default=default_values.GLOW_COMBO, help='Enable glow combo (pygame only)')
     parser.add_argument('--glow-radius', type=int, default=default_values.GLOW_RADIUS_BASE, help='Glow radius')
-    parser.add_argument('--image-impl', type=str, default=default_values.IMAGE_IMPL, choices=['pillow', 'pygame', 'opencv'], help='Image implementation')
+    parser.add_argument('--image-impl', type=str, default=default_values.IMAGE_IMPL, choices=['pillow', 'pygame', 'opencv', 'panda3d'], help='Image implementation')
     parser.add_argument('--skip', type=int, default=default_values.SKIP, help='Skip frames')
 
     parsed = parser.parse_args()
