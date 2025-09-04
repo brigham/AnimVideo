@@ -3,6 +3,7 @@ import os
 import argparse
 from animvideo.scene import Panda3DScene
 from animvideo.config import Config
+from animvideo.video import FFmpegVideoProducer
 
 # https://youtu.be/a4Yge_o7XLg?si=YYmPQBmLYXq4cSoY at 1:10:30
 
@@ -18,7 +19,7 @@ def parse_args() -> Config:
     parser.add_argument('--output', type=str, default=default_values.OUTPUT_DIR + '-scene', help='Output directory.')
     parser.add_argument('--start-frame', type=int, default=default_values.START_FRAME_BASE, help='Start frame (inclusive)')
     parser.add_argument('--end-frame', type=int, default=default_values.END_FRAME_BASE, help='End frame (exclusive, -1 is default)')
-    parser.add_argument('--scale-down', type=int, default=default_values.SCALE_DOWN, help='Scale down factor')
+    parser.add_argument('--scale-down', type=int, default=default_values.SCALE_DOWN * 2, help='Scale down factor')
     parser.add_argument('--glow-combo', type=bool, default=default_values.GLOW_COMBO, help='Enable glow combo (pygame only)')
     parser.add_argument('--glow-radius', type=int, default=default_values.GLOW_RADIUS_BASE, help='Glow radius')
     parser.add_argument('--skip', type=int, default=default_values.SKIP, help='Skip frames')
@@ -37,9 +38,18 @@ def parse_args() -> Config:
 def create_video(config: Config):
     print(f"Creating video with {config}")
     try:
+        producer = FFmpegVideoProducer(config.output_path("output.mp4"), config.CANVAS_SIZE, config.CANVAS_SIZE, config.FPS)
         scene = Panda3DScene(config)
-        scene.time = 3.7
-        scene.save(config.output_path("red_ring.png"))
+        t = 0.0
+        step = 1.0 / config.FPS
+        while t < 1.0:
+            print(t)
+            producer.add_frame(scene, int(t * config.FPS))
+            t += step
+            scene.time = t
+
+        producer.finalize()
+        # scene.save(config.output_path("red_ring.png"))
     except Exception as e:
         print(f"An error occurred: {e}")
         import traceback

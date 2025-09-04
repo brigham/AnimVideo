@@ -3,6 +3,8 @@ import abc
 import subprocess
 from typing import Tuple
 from animvideo.image import Img
+from animvideo.scene import Scene
+from typing import Union
 
 class AbstractVideoProducer(abc.ABC):
     def __init__(self, output_path: str, size: Tuple[int, int], fps: int):
@@ -11,7 +13,7 @@ class AbstractVideoProducer(abc.ABC):
         self.fps = fps
 
     @abc.abstractmethod
-    def add_frame(self, frame: Img, number: int):
+    def add_frame(self, frame: Union[Img, Scene], number: int):
         pass
 
     @abc.abstractmethod
@@ -22,7 +24,7 @@ class NoopProducer(AbstractVideoProducer):
     def __init__(self):
         super().__init__("", (0, 0), 0)
 
-    def add_frame(self, frame: Img, number: int):
+    def add_frame(self, frame: Union[Img, Scene], number: int):
         pass
 
     def finalize(self):
@@ -33,7 +35,7 @@ class GlobVideoProducer(AbstractVideoProducer):
         super().__init__(output_path, size, fps)
         self.prefix = prefix
 
-    def add_frame(self, frame: Img, number: int):
+    def add_frame(self, frame: Union[Img, Scene], number: int):
         frame.save(f"{self.prefix}_{number:06d}.png")
 
     def finalize(self):
@@ -71,7 +73,7 @@ class FFmpegVideoProducer(AbstractVideoProducer):
         # Start the FFmpeg subprocess with a pipe to its stdin
         self.process = subprocess.Popen(command, stdin=subprocess.PIPE)
 
-    def add_frame(self, frame: Img, number: int):
+    def add_frame(self, frame: Union[Img, Scene], number: int):
         """
         Adds a single Pillow image frame to the video stream.
         The frame must be in 'RGB' mode and match the specified size.

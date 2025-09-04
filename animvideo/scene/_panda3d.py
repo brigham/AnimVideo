@@ -57,7 +57,7 @@ class Panda3dScene(_scene.Scene):
         lens.set_near_far(-10, 10)
         self._camera.node().set_lens(lens)
         # Position the camera so that the scene coordinates match pixel coordinates
-        self._camera.set_pos(size[0]/2, size[1]/2, 1)
+        self._camera.set_pos(0, 0, 1)
         self._camera.set_hpr(0, -90, 0)
 
         ambient_light = AmbientLight("ambient light")
@@ -107,7 +107,8 @@ class Panda3dScene(_scene.Scene):
             self._ring(color=quadrant,
                 parent=parent,
                 inner_radius=config.INNER_RADIUS, outer_radius=config.OUTER_RADIUS,
-                center_x=config.CANVAS_SIZE[0] // 2 - level * config.OUTER_RADIUS * 2 - config.ADJUSTMENT, center_y=config.CANVAS_SIZE[1] // 2,
+                center_x=-level * config.OUTER_RADIUS * 2 - config.ADJUSTMENT,
+                center_y=0,
                 rotation=rotation
             )
 
@@ -136,10 +137,10 @@ class Panda3dScene(_scene.Scene):
     @time.setter
     def time(self, value: float):
         self._time = value
-        frame = int(self.config.FPS * self._time)
+        frame = self.config.FPS * self._time
         add_rot = frame * self.config.SKIP / 2
         for level in range(1, self.config.LEVELS):
-            level_rot = _radians(add_rot * (1.0 - level / self.config.LEVELS))
+            level_rot = add_rot * (1.0 - level / self.config.LEVELS)
             self._orbitals[level - 1].set_hpr(level_rot, 0.0, 0.0)
 
     def tobytes(self) -> bytes:
@@ -169,15 +170,13 @@ class Panda3dScene(_scene.Scene):
 
     def _ring(self, parent: NodePath, color: tuple[int, int, int], inner_radius: int, outer_radius: int, center_x: int, center_y: int, rotation: float = 0.0):
         # Place relative to image center with rotation about image center
-        cx_img = self._size[0] * 0.5
-        cy_img = self._size[1] * 0.5
-        dx = center_x - cx_img
-        dy = center_y - cy_img
+        dx = center_x
+        dy = center_y
         c = math.cos(rotation); s = math.sin(rotation)
         rx = dx * c - dy * s
         ry = dx * s + dy * c
-        px = cx_img + rx
-        py = cy_img + ry
+        px = rx
+        py = ry
 
         inst = self._ring_proto.copy_to(parent)
         inst.set_pos(px, py, 0)
