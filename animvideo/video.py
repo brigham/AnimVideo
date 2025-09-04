@@ -46,7 +46,7 @@ class FFmpegVideoProducer(AbstractVideoProducer):
     A video producer that creates a video by piping raw image frames
     directly to an FFmpeg subprocess, avoiding intermediate files.
     """
-    def __init__(self, output_path: str, size: Tuple[int, int], fps: int):
+    def __init__(self, output_path: str, size: Tuple[int, int], output_size: Tuple[int, int], fps: int):
         super().__init__(output_path, size, fps)
         width, height = self.size
 
@@ -62,7 +62,7 @@ class FFmpegVideoProducer(AbstractVideoProducer):
             '-i', '-',  # Input from stdin
             '-c:v', 'libx264',
             # scale down
-            '-vf', f'scale={width // 2}:{height // 2}',
+            '-vf', f'scale={output_size[0]}:{output_size[1]}',
             '-sws_flags', 'lanczos',
             '-pix_fmt', 'yuv420p',
             self.output_path

@@ -30,7 +30,7 @@ def minutes(m):
 class Config:
     OUTPUT_DIR: str = 'output'
     FPS: int = 60
-    SCALE_DOWN: int = 1
+    SCALE_DOWN_BASE: int = 1
     OUTER_RADIUS_BASE: int = 40
     INNER_RADIUS_BASE: int = 30
     CANVAS_SIZE_BASE: Tuple[int, int] = (3840 * 2, 2160 * 2)
@@ -46,6 +46,10 @@ class Config:
     IMAGE_IMPL: str = 'pygame'
     GLOW_COMBO: bool = True
     GLOW_RADIUS_BASE: int = 180
+
+    @property
+    def SCALE_DOWN(self) -> int:
+        return self.SCALE_DOWN_BASE if self.IMAGE_IMPL != 'panda3d' else self.SCALE_DOWN_BASE * 2
 
     @property
     def OUTER_RADIUS(self) -> int:
@@ -133,7 +137,7 @@ def parse_args() -> Config:
         MODE=parsed.mode,
         START_FRAME_BASE=parsed.start_frame,
         END_FRAME_BASE=parsed.end_frame,
-        SCALE_DOWN=parsed.scale_down,
+        SCALE_DOWN_BASE=parsed.scale_down,
         GLOW_COMBO=parsed.glow_combo,
         GLOW_RADIUS_BASE=parsed.glow_radius,
         IMAGE_IMPL=parsed.image_impl,
@@ -150,7 +154,8 @@ def create_video(config: Config):
         if config.MODE.enable_thumbs:
             thumb_producer = GlobVideoProducer(config.output_path("thumbnails.mp4"), config.CANVAS_SIZE, config.FPS, config.output_path("red_ring"))
         if config.MODE.enable_video:
-            producer = FFmpegVideoProducer(config.output_path("output.mp4"), config.CANVAS_SIZE, config.FPS)
+            output_size = config.CANVAS_SIZE if config.IMAGE_IMPL == 'panda3d' else (config.CANVAS_SIZE[0] // 2, config.CANVAS_SIZE[1] // 2)
+            producer = FFmpegVideoProducer(config.output_path("output.mp4"), config.CANVAS_SIZE, output_size, config.FPS)
         start_frame = config.START_FRAME
         end_frame = config.END_FRAME
         print(f"Frames: {start_frame} to {end_frame}")

@@ -15,6 +15,7 @@ from panda3d.core import (
     GeomNode,
     OrthographicLens,
     Texture,
+    GeomTristrips, GeomVertexRewriter, ColorAttrib,
 )
 from direct.showbase.ShowBase import ShowBase
 import math
@@ -70,19 +71,36 @@ class _Panda3dImage(Img):
         self._camera.set_hpr(0, -90, 0)
 
         ambient_light = AmbientLight("ambient light")
-        ambient_light.set_color(VBase4(0.6, 0.6, 0.6, 1.0)) # A dim gray light
+        ambient_light.set_color(VBase4(1.0, 1.0, 1.0, 1.0)) # A dim gray light
         ambient_lnp = self._scene.attach_new_node(ambient_light)
 
         # Tell the scene to be illuminated by this light
         self._scene.set_light(ambient_lnp)
 
-        format = GeomVertexFormat.get_v3c4()
-        self._batched_vdata = GeomVertexData('rings', format, Geom.UH_static)
-        self._batched_vertex = GeomVertexWriter(self._batched_vdata, 'vertex')
-        self._batched_color = GeomVertexWriter(self._batched_vdata, 'color')
-        self._batched_prim = GeomTriangles(Geom.UH_static)
 
-        self._nrings = 0
+        def _make_ring_proto(segments=128):
+            fmt = GeomVertexFormat.get_v3()  # no per-vertex colors; we'll set color per-instance
+            vdata = GeomVertexData('unit_ring', fmt, Geom.UH_static)
+            vdata.set_num_rows((segments + 1) * 2)
+
+            vw = GeomVertexWriter(vdata, 'vertex')
+            # Unit ring with outer=1, inner=k kept in X-Y plane
+            k = 0.5  # default thickness; will be overridden via nonuniform scale if needed
+            for i in range(segments + 1):
+                t = (i / segments) * 2.0 * math.pi
+                c = math.cos(t); s = math.sin(t)
+                vw.add_data3(k*c, k*s, 0)  # inner
+                vw.add_data3(c, s, 0)      # outer
+
+            prim = GeomTristrips(Geom.UH_static)
+            prim.add_next_vertices((segments + 1) * 2)
+            prim.close_primitive()
+
+            geom = Geom(vdata); geom.add_primitive(prim)
+            node = GeomNode('ring_proto'); node.add_geom(geom)
+            return node
+
+        self._ring_proto = NodePath(_make_ring_proto())
 
 
     @classmethod
@@ -114,50 +132,29 @@ class _Panda3dImage(Img):
         return self._size
 
     def ring(self, color: tuple[int, int, int], inner_radius: int, outer_radius: int, center_x: int, center_y: int, rotation: float = 0.0):
-        # Just draw a filled circle with outer_radius
-        num_segments = 64
-        # format = GeomVertexFormat.get_v3c4()
-        # vdata = GeomVertexData('circle', format, Geom.UH_static)
+        # Place relative to image center with rotation about image center
+        cx_img = self._size[0] * 0.5
+        cy_img = self._size[1] * 0.5
+        dx = center_x - cx_img
+        dy = center_y - cy_img
+        c = math.cos(rotation); s = math.sin(rotation)
+        rx = dx * c - dy * s
+        ry = dx * s + dy * c
+        px = cx_img + rx
+        py = cy_img + ry
 
-        # vertex = GeomVertexWriter(vdata, 'vertex')
-        # vcolor = GeomVertexWriter(vdata, 'color')
+        inst = self._ring_proto.copy_to(self._scene)
+        # Uniform scale by outer radius; then shrink inner radius via nonuniform XY scale
+        # Base proto has inner/outer = k/1. To get desired inner_radius, set k = inner/outer.
+        k = 0.0 if outer_radius == 0 else (inner_radius / max(outer_radius, 1e-6))
+        inst.set_pos(px, py, 0)
+        #inst.set_hpr(math.degrees(rotation), 0, 0)  # rotate in-plane (about Z)
+        inst.set_scale(outer_radius, outer_radius, 1)
+        # Adjust proto’s built-in k by additional nonuniform scale of inner vertices via TexMatrix is not available,
+        # so rebuild once per distinct k buckets or keep two protos. Easiest: make one proto per k.
+        inst.set_color(color[0]/255.0, color[1]/255.0, color[2]/255.0, 1.0)
+        #inst.set_attrib(ColorAttrib.make_vertex())  # ensure per-instance color modulates
 
-        image_center_x = self._size[0] // 2
-        image_center_y = self._size[1] // 2
-
-        cos_rot = math.cos(rotation)
-        sin_rot = math.sin(rotation)
-
-        # Translate point to origin
-        translated_x = center_x - image_center_x
-        translated_y = center_y - image_center_y
-
-        # Rotate point
-        rotated_x = translated_x * cos_rot - translated_y * sin_rot
-        rotated_y = translated_x * sin_rot + translated_y * cos_rot
-
-        # Translate point back
-        center_x = rotated_x + image_center_x
-        center_y = rotated_y + image_center_y
-
-
-        # Center vertex
-        self._batched_vertex.add_data3(center_x, center_y, 0)
-        self._batched_color.add_data4(color[0]/255.0, color[1]/255.0, color[2]/255.0, 1.0)
-
-        # Outer vertices
-        for i in range(num_segments + 1):
-            angle = (i / num_segments) * 2 * math.pi
-            dx = outer_radius * math.cos(angle)
-            dy = outer_radius * math.sin(angle)
-            self._batched_vertex.add_data3(center_x + dx, center_y + dy, 0)
-            self._batched_color.add_data4(color[0]/255.0, color[1]/255.0, color[2]/255.0, 1.0)
-
-        # prim = GeomTriangles(Geom.UH_static)
-        center_index = self._nrings * (num_segments + 2)
-        for i in range(center_index, center_index + num_segments):
-            self._batched_prim.add_vertices(center_index, i + 1, i + 2)
-        self._nrings += 1
 
 
     def ellipse(self, bbox: tuple[int, int, int, int], fill: tuple[int, int, int] = (0, 0, 0)):
@@ -186,23 +183,17 @@ class _Panda3dImage(Img):
             vertex.add_data3(center_x + dx, center_y + dy, 0)
             vcolor.add_data4(fill[0]/255.0, fill[1]/255.0, fill[2]/255.0, 1.0)
 
-        # prim = GeomTriangles(Geom.UH_static)
+        prim = GeomTriangles(Geom.UH_static)
         for i in range(num_segments):
-            self._batched_prim.add_vertices(0, i + 1, i + 2)
+            prim.add_vertices(0, i + 1, i + 2)
 
-        # geom = Geom(vdata)
-        # geom.add_primitive(prim)
+        geom = Geom(vdata)
+        geom.add_primitive(prim)
 
-        # node = GeomNode('ellipse_node')
-        # node.add_geom(geom)
-
-        # self._scene.attach_new_node(node)
-
-    def glow(self, radius: int = 79):
-        geom = Geom(self._batched_vdata)
-        geom.add_primitive(self._batched_prim)
-
-        node = GeomNode('batched_rings')
+        node = GeomNode('ellipse_node')
         node.add_geom(geom)
 
         self._scene.attach_new_node(node)
+
+    def glow(self, radius: int = 79):
+        pass
