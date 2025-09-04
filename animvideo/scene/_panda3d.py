@@ -143,6 +143,14 @@ class Panda3dScene(_scene.Scene):
             level_rot = add_rot * (1.0 - level / self.config.LEVELS)
             self._orbitals[level - 1].set_hpr(level_rot, 0.0, 0.0)
 
+    def _rearrange(self, data: bytes) -> bytes:
+        # Flip vertically to match conventional top-to-bottom rows
+        w, h = self._size
+        row_bytes = w * 3
+        return b''.join(
+            data[y*row_bytes:(y+1)*row_bytes] for y in reversed(range(h))
+        )
+
     def tobytes(self) -> bytes:
         base = self._base
         base.graphicsEngine.render_frame()
@@ -151,12 +159,7 @@ class Panda3dScene(_scene.Scene):
             raise RuntimeError("Texture has no RAM image")
         data = bytes(img)
 
-        # Flip vertically to match conventional top-to-bottom rows
-        w, h = self._size
-        row_bytes = w * 3
-        return b''.join(
-            data[y*row_bytes:(y+1)*row_bytes] for y in reversed(range(h))
-        )
+        return self._rearrange(data)
 
     def save(self, filename: str):
         base = self._base
