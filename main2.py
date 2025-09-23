@@ -38,18 +38,19 @@ def parse_args() -> Config:
 def create_video(config: Config):
     print(f"Creating video with {config}")
     try:
-        producer = FFmpegVideoProducer(config.output_path("output.mp4"), config.CANVAS_SIZE, config.CANVAS_SIZE, config.FPS)
+        producer = FFmpegVideoProducer(config.output_path("output-temp.mp4"), config.CANVAS_SIZE, config.CANVAS_SIZE, config.FPS)
         scene = Panda3DScene(config)
         t = 0.0
         step = 1.0 / config.FPS
-        while t < 1.0:
+        while t < 2.0:
             print(t)
             producer.add_frame(scene, int(t * config.FPS))
             t += step
             scene.time = t
 
         producer.finalize()
-        # scene.save(config.output_path("red_ring.png"))
+        os.rename(config.output_path("output-temp.mp4"), config.output_path("output.mp4"))
+        scene.save(config.output_path("red_ring.png"))
     except Exception as e:
         print(f"An error occurred: {e}")
         import traceback
@@ -63,7 +64,8 @@ def main():
     if not os.path.exists(config.OUTPUT_DIR):
         os.makedirs(config.OUTPUT_DIR)
     for f in os.listdir(config.OUTPUT_DIR):
-        os.remove(os.path.join(config.OUTPUT_DIR, f))
+        if f != 'output.mp4':
+            os.remove(os.path.join(config.OUTPUT_DIR, f))
     create_video(config)
 
 if __name__ == "__main__":
