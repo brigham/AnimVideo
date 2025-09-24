@@ -101,5 +101,17 @@ class Config:
         scaled = self.GLOW_RADIUS_BASE // self.SCALE_DOWN
         return scaled + 1 if scaled % 2 == 0 else scaled
 
+    @property
+    def LEVEL_HEIGHT(self) -> int:
+        return 500 // self.SCALE_DOWN
+
+    @property
+    def CAMERA_HEIGHT(self) -> int:
+        return self.LEVEL_HEIGHT * (self.LEVELS + 2)
+
+    @property
+    def LIGHT_HEIGHT(self) -> int:
+        return self.LEVEL_HEIGHT * self.LEVELS
+
     def output_path(self, filename: str) -> str:
         return os.path.join(self.OUTPUT_DIR, filename)

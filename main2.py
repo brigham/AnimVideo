@@ -42,7 +42,7 @@ def create_video(config: Config):
         scene = Panda3DScene(config)
         t = 0.0
         step = 1.0 / config.FPS
-        while t < 2.0:
+        while t < 120.0:
             print(t)
             producer.add_frame(scene, int(t * config.FPS))
             t += step

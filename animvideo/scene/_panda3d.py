@@ -1,5 +1,8 @@
 from . import _scene
 from panda3d.core import (
+    DirectionalLight,
+    PointLight,
+    Vec3,
     loadPrcFileData,
     GraphicsOutput,
     GraphicsPipe,
@@ -81,16 +84,30 @@ class Panda3dScene(_scene.Scene):
         lens = create_lens(size)
         self._camera.node().set_lens(lens)
         # Position the camera so that the scene coordinates match pixel coordinates
-        self._camera.set_pos(1200, 0, 4000)
-        self._camera.look_at(200, 0, 0)
+        self._camera.set_pos(-1200, 0, self.config.CAMERA_HEIGHT)
+        self._camera.look_at(2000, 0, 0)
 
-        ambient_light = AmbientLight("ambient light")
-        ambient_light.set_color(VBase4(1.0, 1.0, 1.0, 1.0)) # A dim gray light
-        ambient_lnp = self._scene.attach_new_node(ambient_light)
+        # ambient_light = AmbientLight("ambient light")
+        # ambient_light.set_color(VBase4(0.1, 0.1, 0.1, 1.0)) # A dim gray light
+        # ambient_lnp = self._scene.attach_new_node(ambient_light)
+        # self._scene.set_light(ambient_lnp)
 
-        # Tell the scene to be illuminated by this light
-        self._scene.set_light(ambient_lnp)
-
+        # directional_light = DirectionalLight("directional light")
+        # directional_light.set_color(VBase4(0.75, 0.75, 0.75, 1.0))
+        # directional_light.set_direction(Vec3(0, 0, -1))
+        # directional_lnp = self._scene.attach_new_node(directional_light)
+        # self._scene.set_light(directional_lnp)
+        #
+        for i in range (8):
+            angle = i * math.pi / 4
+            mx = math.cos(angle)
+            my = math.sin(angle)
+            point_light = PointLight("point light")
+            point_light.set_color(VBase4(0.95, 0.95, 0.95, 1.0)) # A bright white light
+            point_light.set_attenuation(Vec3(0.0, 0.0, 0.0000004))
+            point_lnp = self._scene.attach_new_node(point_light)
+            point_lnp.set_pos(mx * 1550, my * 1550, self.config.LIGHT_HEIGHT)
+            self._scene.set_light(point_lnp)
 
         def _make_ring_proto(segments: int=16):
             fmt = GeomVertexFormat.get_v3()  # no per-vertex colors; we'll set color per-instance
@@ -116,7 +133,7 @@ class Panda3dScene(_scene.Scene):
 
         self._ring_proto: NodePath = NodePath(_make_ring_proto())
 
-        def red_ring(parent: NodePath, level: int, rotation: float):
+        def red_ring(parent: NodePath, level: int, rotation: float, cache: set[int] = set()):
             config = self.config
             rotprime = rotation * 6 % (2 * math.pi)
             quadnum = int(rotation * 3 / (math.pi / 2))
@@ -127,6 +144,10 @@ class Panda3dScene(_scene.Scene):
                 quadrant = config.COLORS1[level % len(config.COLORS1)]
             mult = 1 - math.pow(cosine, 2)
             quadrant = (quadrant[0] * mult, quadrant[1] * mult, quadrant[2] * mult)
+
+            if level not in cache:
+                cache.add(level)
+                print(f"Level {level}, center_x={-level * config.OUTER_RADIUS * 2 - config.ADJUSTMENT}")
 
             self._ring(color=quadrant,
                 parent=parent,
@@ -156,7 +177,7 @@ class Panda3dScene(_scene.Scene):
 
         self._time: float = 0.0
 
-        self._glow(0.9)
+        self._glow(0.7)
 
     @property
     @override
@@ -171,9 +192,12 @@ class Panda3dScene(_scene.Scene):
         for level in range(1, self.config.LEVELS):
             level_rot = add_rot * (1.0 - level / self.config.LEVELS)
             self._orbitals[level - 1].set_hpr(level_rot, 0.0, 0.0) # level * 0.25)
-            self._orbitals[level - 1].set_pos(0.0, 0.0, level * 75)
-        self._camera.set_pos(math.cos(frame / 131.0) * 1200, math.sin(frame / 131.0) * 1600, 4000)
-        self._camera.look_at(200, 0, 0)
+            self._orbitals[level - 1].set_pos(0.0, 0.0, level * self.config.LEVEL_HEIGHT)
+        self._camera.set_pos(
+            -math.cos(frame / 131.0) * 1200,
+            math.sin(frame / 131.0) * 1600,
+            self.config.CAMERA_HEIGHT)
+        self._camera.look_at(2000, 0, 0)
 
 
     def _rearrange(self, data: bytes) -> bytes:
@@ -187,12 +211,8 @@ class Panda3dScene(_scene.Scene):
     def _glow(self, threshold: float = 0.7):
         """Apply a lightweight bloom/glow effect as a final post-process."""
 
-        # if 1 == 1:
-        #     return
         manager = FilterManager(self._base.win, self._camera)
         tex = Texture()
-        # size = self._size
-        # tex.setup_2d_texture(size[0], size[1], Texture.T_unsigned_byte, Texture.F_rgb8)
         quad = manager.render_scene_into(colortex=tex)
         if not quad: # or quad:
             return
